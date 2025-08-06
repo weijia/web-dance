@@ -7,6 +7,7 @@ export interface AudioState {
   currentTime: number;
   duration: number;
   volume: number;
+  effectsVolume: number;
 }
 
 // 音频系统类
@@ -27,7 +28,8 @@ export class AudioSystem {
     isLoaded: false,
     currentTime: 0,
     duration: 0,
-    volume: 1.0
+    volume: 1.0,
+    effectsVolume: 0.5
   };
   
   /**
@@ -284,6 +286,19 @@ export class AudioSystem {
     this.dataArray = null;
     this.onBeatCallbacks = [];
     this.onEndCallbacks = [];
+  }
+  
+  /**
+   * 设置音效音量
+   * @param volume 音量（0-1）
+   */
+  setEffectsVolume(volume: number): void {
+    // 存储音效音量设置
+    this.state.effectsVolume = Math.max(0, Math.min(1, volume));
+    
+    // 在实际项目中，这里应该设置音效的音量
+    // 由于我们没有单独的音效系统，这里只是存储设置值
+    // 实际应用中可能需要遍历所有音效对象并设置它们的音量
   }
 }
 

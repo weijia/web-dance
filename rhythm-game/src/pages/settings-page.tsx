@@ -22,6 +22,9 @@ const SettingsPage: React.FC = () => {
   useEffect(() => {
     const loadSettings = async () => {
       try {
+        // 确保存储系统已初始化
+        await storageSystem.initialize();
+        
         const savedSettings = await storageSystem.getSettings();
         if (savedSettings) {
           setSettings(savedSettings);
@@ -42,17 +45,28 @@ const SettingsPage: React.FC = () => {
   
   // 保存设置
   const handleSave = async () => {
+    console.log('开始保存设置...');
     setIsSaving(true);
     setSaveMessage('');
     
     try {
-      await storageSystem.saveSettings(settings);
+      // 确保存储系统已初始化
+      console.log('正在初始化存储系统...');
+      const initialized = await storageSystem.initialize();
+      console.log('存储系统初始化状态:', initialized);
+      
+      // 保存设置
+      console.log('正在保存设置:', settings);
+      const settingId = await storageSystem.saveSettings(settings);
+      console.log('设置已保存，ID:', settingId);
       
       // 应用音量设置
+      console.log('应用音量设置...');
       audioSystem.setVolume(settings.volume);
       audioSystem.setEffectsVolume(settings.effectsVolume);
       
       setSaveMessage('设置已保存');
+      console.log('设置已成功保存并应用');
       
       // 3秒后清除消息
       setTimeout(() => {
@@ -60,7 +74,7 @@ const SettingsPage: React.FC = () => {
       }, 3000);
     } catch (error) {
       console.error('保存设置失败:', error);
-      setSaveMessage('保存失败，请重试');
+      setSaveMessage(`保存失败: ${error instanceof Error ? error.message : '未知错误'}`);
     } finally {
       setIsSaving(false);
     }
@@ -130,7 +144,14 @@ const SettingsPage: React.FC = () => {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
       >
-        <Link to="/" className="text-neon-blue hover:text-white transition-colors">
+        <div 
+          onClick={() => {
+            console.log('返回按钮被点击');
+            window.location.href = '/';
+          }}
+          className="text-neon-blue hover:text-white transition-colors cursor-pointer"
+          style={{ zIndex: 100 }}
+        >
           <div className="flex items-center gap-2">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="m12 19-7-7 7-7"/>
@@ -138,7 +159,7 @@ const SettingsPage: React.FC = () => {
             </svg>
             <span>返回</span>
           </div>
-        </Link>
+        </div>
         <h1 className="text-2xl font-bold neon-text-blue">游戏设置</h1>
         <div className="w-20"></div> {/* 占位，保持标题居中 */}
       </motion.div>
@@ -241,6 +262,7 @@ const SettingsPage: React.FC = () => {
           <button
             className="cyber-button bg-cyber-dark border-neon-pink hover:bg-neon-pink hover:shadow-neon-pink"
             onClick={handleReset}
+            type="button"
           >
             重置设置
           </button>
@@ -256,13 +278,16 @@ const SettingsPage: React.FC = () => {
               </motion.div>
             )}
             
-            <button
-              className="cyber-button"
-              onClick={handleSave}
-              disabled={isSaving}
+            <div 
+              className="cyber-button bg-cyber-dark border-neon-blue hover:bg-neon-blue hover:text-cyber-black cursor-pointer p-4 text-center"
+              onClick={() => {
+                console.log('保存按钮被点击');
+                handleSave();
+              }}
+              style={{ zIndex: 100 }}
             >
               {isSaving ? '保存中...' : '保存设置'}
-            </button>
+            </div>
           </div>
         </div>
       </div>

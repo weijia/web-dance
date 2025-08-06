@@ -27,40 +27,117 @@ const CalibrationPage: React.FC = () => {
 
   // 初始化摄像头
   useEffect(() => {
+    let mounted = true;
+    let videoStream: MediaStream | null = null;
+    let initTimeout: NodeJS.Timeout;
+    const initRef = useRef(false);
+    
     const initCamera = async () => {
       try {
-        if (!videoRef.current) return;
+        console.log('开始初始化摄像头...');
         
-        const stream = await navigator.mediaDevices.getUserMedia({
+        // 等待DOM渲染完成，确保videoRef.current存在
+        if (!videoRef.current) {
+          console.log('等待视频元素渲染...');
+          // 使用setTimeout等待DOM渲染
+          setTimeout(initCamera, 100);
+          return;
+        }
+        
+        // 获取摄像头流
+        console.log('请求摄像头权限...');
+        videoStream = await navigator.mediaDevices.getUserMedia({
           video: { width: 640, height: 480 }
         });
+        console.log('摄像头权限已获取');
         
-        videoRef.current.srcObject = stream;
+        // 确保组件仍然挂载
+        if (!mounted || !videoRef.current) return;
         
-        // 模拟加载MediaPipe模型
-        setTimeout(() => {
-          setIsLoading(false);
-        }, 2000);
+        // 设置视频源
+        videoRef.current.srcObject = videoStream;
+        console.log('视频源已设置');
+        
+        // 等待元数据加载完成后播放视频
+        videoRef.current.onloadedmetadata = async () => {
+          if (!mounted || !videoRef.current) return;
+          
+          try {
+            console.log('视频元数据已加载，尝试播放...');
+            await videoRef.current.play();
+            console.log('视频播放成功');
+            
+            // 初始化手部追踪
+            if (mounted) {
+              console.log('开始初始化手部追踪...');
+              try {
+                await motionTracker.initialize(videoRef.current);
+                console.log('手部追踪初始化成功');
+                
+                // 强制结束加载状态
+                if (mounted) {
+                  console.log('设置加载状态为完成');
+                  setIsLoading(false);
+                }
+              } catch (trackError) {
+                console.error('手部追踪初始化失败:', trackError);
+                if (mounted) {
+                  setIsLoading(false); // 即使失败也结束加载状态
+                  setError('手部追踪初始化失败，请刷新页面重试');
+                }
+              }
+            }
+          } catch (e) {
+            console.error('视频播放失败:', e);
+            if (mounted) {
+              setIsLoading(false);
+              setError('视频播放失败，请检查摄像头权限');
+            }
+          }
+        };
+        
+        // 设置超时，防止永久加载
+        initTimeout = setTimeout(() => {
+          if (mounted && isLoading) {
+            console.log('初始化超时，强制结束加载状态');
+            setIsLoading(false);
+            setError('初始化超时，请刷新页面重试');
+          }
+        }, 10000); // 10秒超时
         
       } catch (error) {
         console.error('无法访问摄像头:', error);
+        if (mounted) {
+          setIsLoading(false);
+          setError('无法访问摄像头，请检查浏览器权限设置');
+        }
       }
     };
     
     initCamera();
     
     return () => {
+      console.log('组件卸载，清理资源');
+      mounted = false;
+      clearTimeout(initTimeout);
+      
       // 清理摄像头资源
-      if (videoRef.current && videoRef.current.srcObject) {
-        const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
-        tracks.forEach(track => track.stop());
+      if (videoStream) {
+        videoStream.getTracks().forEach(track => {
+          console.log('停止摄像头轨道');
+          track.stop();
+        });
       }
+      
+      // 清理手部追踪资源
+      console.log('释放手部追踪资源');
+      motionTracker.dispose();
     };
-  }, []);
+  }, [isLoading]);
 
   // 监听手部检测状态
   useEffect(() => {
-    setHandDetected(handPosition !== null && confidence > 0.5);
+    setHandDetected(handPosition !== null && confidence > 0.3); // 降低阈值，与motion-tracker.ts中的设置保持一致
   }, [handPosition, confidence]);
 
   // 绘制手部关键点
@@ -256,7 +333,14 @@ const CalibrationPage: React.FC = () => {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
       >
-        <Link to="/" className="text-neon-blue hover:text-white transition-colors">
+        <div 
+          onClick={() => {
+            console.log('返回按钮被点击');
+            window.location.href = '/';
+          }}
+          className="text-neon-blue hover:text-white transition-colors cursor-pointer"
+          style={{ zIndex: 100 }}
+        >
           <div className="flex items-center gap-2">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="m12 19-7-7 7-7"/>
@@ -264,7 +348,7 @@ const CalibrationPage: React.FC = () => {
             </svg>
             <span>返回</span>
           </div>
-        </Link>
+        </div>
         <h1 className="text-2xl font-bold neon-text-blue">动作校准</h1>
         <div className="w-20"></div> {/* 占位，保持标题居中 */}
       </motion.div>
@@ -304,8 +388,17 @@ const CalibrationPage: React.FC = () => {
         {/* 摄像头预览 */}
         <div className="relative w-full aspect-video mb-6 overflow-hidden rounded-lg border border-neon-blue">
           {isLoading ? (
-            <div className="absolute inset-0 flex items-center justify-center bg-cyber-dark">
-              <div className="text-neon-blue text-xl animate-pulse">加载摄像头...</div>
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-cyber-dark">
+              <div className="text-neon-blue text-xl animate-pulse mb-4">加载摄像头...</div>
+              <button 
+                className="cyber-button bg-cyber-dark border-neon-pink"
+                onClick={() => {
+                  console.log('手动结束加载状态');
+                  setIsLoading(false);
+                }}
+              >
+                跳过等待
+              </button>
             </div>
           ) : (
             <>
@@ -375,33 +468,56 @@ const CalibrationPage: React.FC = () => {
         {/* 控制按钮 */}
         <div className="flex justify-center">
           {!isCalibrating ? (
-            <button 
-              className="cyber-button"
-              onClick={startCalibration}
-              disabled={isLoading}
+            <div 
+              className={`cyber-button ${isLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+              onClick={() => {
+                if (!isLoading) {
+                  console.log('开始校准按钮被点击');
+                  startCalibration();
+                }
+              }}
+              style={{ zIndex: 100 }}
             >
               {isLoading ? '正在初始化...' : '开始校准'}
-            </button>
+            </div>
           ) : (
-            <button 
-              className="cyber-button bg-cyber-dark border-neon-pink hover:bg-neon-pink hover:shadow-neon-pink"
+            <div 
+              className="cyber-button bg-cyber-dark border-neon-pink hover:bg-neon-pink hover:shadow-neon-pink cursor-pointer"
               onClick={() => {
+                console.log('取消校准按钮被点击');
                 setIsCalibrating(false);
                 setCalibrationStep(0);
                 setCalibrationProgress(0);
               }}
+              style={{ zIndex: 100 }}
             >
               取消校准
-            </button>
+            </div>
           )}
         </div>
         
         {/* 错误提示 */}
         {error && (
           <div className="mt-4 p-3 bg-cyber-dark border border-neon-pink rounded-md text-neon-pink text-center">
-            {error}
+            <div className="mb-2">{error}</div>
+            <button 
+              className="cyber-button bg-cyber-dark border-neon-pink hover:bg-neon-pink hover:text-cyber-black mt-2"
+              onClick={() => window.location.reload()}
+            >
+              刷新页面
+            </button>
           </div>
         )}
+        
+        {/* 调试信息 */}
+        <div className="mt-4 p-3 bg-cyber-dark border border-neon-blue rounded-md text-sm opacity-70">
+          <div className="font-bold mb-2">调试信息:</div>
+          <div>摄像头状态: {videoRef.current?.readyState === 4 ? '就绪' : '未就绪'}</div>
+          <div>视频尺寸: {videoRef.current?.videoWidth || 0} x {videoRef.current?.videoHeight || 0}</div>
+          <div>手部追踪: {isTracking ? '活跃' : '未活跃'}</div>
+          <div>置信度: {(confidence * 100).toFixed(1)}%</div>
+          <div>检测到的手势: {gesture || '无'}</div>
+        </div>
       </div>
     </div>
   );

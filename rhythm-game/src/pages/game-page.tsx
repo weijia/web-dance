@@ -1,16 +1,12 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls, PerspectiveCamera } from '@react-three/drei';
-import * as THREE from 'three';
-
-// 导入系统组件
+import { motion } from 'framer-motion';
 import { GameScene } from '../components/game-scene';
-import { motionTracker } from '../systems/motion-tracker';
-import { audioSystem } from '../systems/audio-system';
-import { gameManager, JudgementResult } from '../systems/game-manager';
-import { PRESET_BEATMAPS, generateBeatsFromBPM } from '../systems/rhythm-engine';
+import { useHandTracking } from '../hooks/use-hand-tracking';
+import { useAudioSync } from '../hooks/use-audio-sync';
+import { gameManager } from '../systems/game-manager';
+import { performanceMonitor } from '../systems/performance-monitor';
 
 // 模拟歌曲数据
 const mockSongs = {
@@ -18,257 +14,242 @@ const mockSongs = {
     id: 'song1',
     title: '电子幻境',
     artist: 'Cyber Dreams',
-    bpm: 128,
-    audioUrl: '/songs/song1.mp3',
+    bpm: 120,
+    duration: 180, // 秒
     difficulty: 'normal',
-    duration: 60000, // 60秒
-    coverImage: '/images/covers/song1.jpg'
+    audioUrl: '/songs/song1.mp3'
   },
   song2: {
     id: 'song2',
     title: '霓虹律动',
     artist: 'Neon Beats',
     bpm: 140,
-    audioUrl: '/songs/song2.mp3',
+    duration: 210,
     difficulty: 'hard',
-    duration: 90000, // 90秒
-    coverImage: '/images/covers/song2.jpg'
+    audioUrl: '/songs/song2.mp3'
   },
   song3: {
     id: 'song3',
     title: '数字浪潮',
     artist: 'Digital Wave',
-    bpm: 110,
-    audioUrl: '/songs/song3.mp3',
+    bpm: 100,
+    duration: 240,
     difficulty: 'easy',
-    duration: 75000, // 75秒
-    coverImage: '/images/covers/song3.jpg'
+    audioUrl: '/songs/song3.mp3'
   }
 };
 
-// 游戏状态类型
-type GameStatus = 'loading' | 'countdown' | 'playing' | 'paused' | 'finished';
-
-// 判定结果显示组件
-const JudgementDisplay: React.FC<{
-  result: JudgementResult;
-  position: { x: number; y: number };
-}> = ({ result, position }) => {
-  // 根据判定结果设置颜色和文本
-  let color = '';
-  let text = '';
+// 模拟生成节拍点
+const generateBeatPoints = (songId: string) => {
+  const song = mockSongs[songId as keyof typeof mockSongs];
+  if (!song) return [];
   
-  switch (result) {
-    case 'perfect':
-      color = 'text-neon-green';
-      text = '完美!';
-      break;
-    case 'good':
-      color = 'text-neon-blue';
-      text = '不错!';
-      break;
-    case 'miss':
-      color = 'text-neon-pink';
-      text = '错过!';
-      break;
-    default:
-      return null;
+  const bpm = song.bpm;
+  const beatInterval = 60000 / bpm; // 毫秒
+  const duration = song.duration * 1000; // 毫秒
+  const totalBeats = Math.floor(duration / beatInterval);
+  
+  const beatPoints = [];
+  
+  for (let i = 0; i < totalBeats; i++) {
+    // 只生成部分节拍点（约1/3），使游戏更有挑战性
+    if (Math.random() > 0.3) continue;
+    
+    // 生成随机位置
+    const x = (Math.random() - 0.5) * 4; // -2 到 2
+    const y = Math.random() * 2 + 0.5;   // 0.5 到 2.5
+    const z = -5;
+    
+    // 随机颜色
+    const colors = ['#00f3ff', '#ff00ff', '#00ff9f'];
+    const color = colors[Math.floor(Math.random() * colors.length)];
+    
+    // 随机大小
+    const size = 0.2 + Math.random() * 0.2; // 0.2 到 0.4
+    
+    beatPoints.push({
+      time: i * beatInterval,
+      position: { x, y, z },
+      color,
+      size
+    });
   }
   
-  return (
-    <motion.div
-      className={`absolute ${color} font-bold text-xl`}
-      style={{ left: position.x, top: position.y }}
-      initial={{ opacity: 0, y: 0, scale: 0.5 }}
-      animate={{ opacity: 1, y: -50, scale: 1.2 }}
-      exit={{ opacity: 0, y: -100, scale: 0.8 }}
-      transition={{ duration: 0.8 }}
-    >
-      {text}
-    </motion.div>
-  );
+  return beatPoints;
 };
 
 const GamePage: React.FC = () => {
-  const { songId } = useParams<{ songId: string }>();
+  const { songId = 'song1' } = useParams();
   const navigate = useNavigate();
-  const [gameStatus, setGameStatus] = useState<GameStatus>('loading');
-  const [countdown, setCountdown] = useState(3);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isPaused, setIsPaused] = useState(false);
+  const [countdown, setCountdown] = useState<number | null>(3);
   const [score, setScore] = useState(0);
   const [combo, setCombo] = useState(0);
-  const [maxCombo, setMaxCombo] = useState(0);
   const [accuracy, setAccuracy] = useState(100);
-  const [songData, setSongData] = useState<any>(null);
-  const [handPosition, setHandPosition] = useState<THREE.Vector3 | null>(null);
-  const [beatMap, setBeatMap] = useState<any[]>([]);
-  const [judgements, setJudgements] = useState<{
-    id: string;
-    result: JudgementResult;
-    position: { x: number; y: number };
-  }[]>([]);
+  const [beatPoints, setBeatPoints] = useState<any[]>([]);
+  const [showControls, setShowControls] = useState(false);
+  const [showPerformanceInfo, setShowPerformanceInfo] = useState(false);
+  const [fps, setFps] = useState(60);
+  const [deviceTier, setDeviceTier] = useState(2);
+  const [autoAdjust, setAutoAdjust] = useState(true);
   
-  // 视频引用（用于手部追踪）
-  const videoRef = useRef<HTMLVideoElement>(null);
-  // 游戏容器引用
-  const gameContainerRef = useRef<HTMLDivElement>(null);
-  // 倒计时间隔引用
-  const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  // 使用手部追踪钩子
+  const { handPosition, isTracking, confidence } = useHandTracking();
   
-  // 初始化游戏数据
+  // 使用音频同步钩子
+  const { 
+    isPlaying, 
+    currentTime, 
+    duration, 
+    play, 
+    pause, 
+    stop 
+  } = useAudioSync();
+  
+  // 游戏结束时间引用
+  const gameEndTimeRef = useRef<number | null>(null);
+  
+  // 加载歌曲和生成节拍点
   useEffect(() => {
-    if (!songId || !mockSongs[songId as keyof typeof mockSongs]) {
-      navigate('/songs');
-      return;
-    }
-    
-    // 加载歌曲数据
-    const song = mockSongs[songId as keyof typeof mockSongs];
-    setSongData(song);
-    
-    // 生成或加载谱面
-    let songBeatMap;
-    if (PRESET_BEATMAPS[songId]) {
-      songBeatMap = PRESET_BEATMAPS[songId].beats;
-    } else {
-      // 根据BPM生成谱面
-      songBeatMap = generateBeatsFromBPM(
-        song.bpm,
-        song.duration,
-        0,
-        song.difficulty as any
-      );
-    }
-    
-    setBeatMap(songBeatMap);
-    
-    // 模拟资源加载
-    const loadingTimer = setTimeout(() => {
-      setGameStatus('countdown');
+    const loadSong = async () => {
+      setIsLoading(true);
       
-      // 开始倒计时
-      countdownIntervalRef.current = setInterval(() => {
-        setCountdown(prev => {
-          if (prev <= 1) {
-            if (countdownIntervalRef.current) {
-              clearInterval(countdownIntervalRef.current);
+      try {
+        // 获取歌曲数据
+        const song = mockSongs[songId as keyof typeof mockSongs];
+        if (!song) {
+          navigate('/songs');
+          return;
+        }
+        
+        // 生成节拍点
+        const beats = generateBeatPoints(songId);
+        setBeatPoints(beats);
+        
+        // 模拟加载时间
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        
+        setIsLoading(false);
+        
+        // 开始倒计时
+        setCountdown(3);
+        const countdownInterval = setInterval(() => {
+          setCountdown(prev => {
+            if (prev === null || prev <= 1) {
+              clearInterval(countdownInterval);
+              return null;
             }
-            setGameStatus('playing');
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-      
-    }, 2000);
-    
-    return () => {
-      clearTimeout(loadingTimer);
-      if (countdownIntervalRef.current) {
-        clearInterval(countdownIntervalRef.current);
+            return prev - 1;
+          });
+        }, 1000);
+        
+        // 倒计时结束后开始游戏
+        setTimeout(() => {
+          play(song.audioUrl);
+          
+          // 设置游戏结束时间
+          gameEndTimeRef.current = Date.now() + song.duration * 1000;
+        }, 3000);
+        
+      } catch (error) {
+        console.error('加载歌曲失败:', error);
+        navigate('/songs');
       }
+    };
+    
+    loadSong();
+    
+    // 清理函数
+    return () => {
+      stop();
     };
   }, [songId, navigate]);
   
-  // 初始化手部追踪
+  // 监听键盘事件
   useEffect(() => {
-    const initHandTracking = async () => {
-      try {
-        if (!videoRef.current) return;
-        
-        // 初始化手部追踪
-        await motionTracker.initialize(videoRef.current);
-        
-        // 监听手部位置更新
-        motionTracker.onUpdate((state) => {
-          if (state.handPosition) {
-            setHandPosition(state.handPosition);
-          }
-        });
-        
-      } catch (error) {
-        console.error('无法初始化手部追踪:', error);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      switch (e.key) {
+        case 'Escape':
+          togglePause();
+          break;
+        case 'p':
+          togglePerformanceInfo();
+          break;
+        case 'c':
+          setShowControls(prev => !prev);
+          break;
       }
     };
     
-    if (gameStatus === 'countdown' || gameStatus === 'playing') {
-      initHandTracking();
-    }
+    window.addEventListener('keydown', handleKeyDown);
     
     return () => {
-      // 清理手部追踪资源
-      motionTracker.dispose();
+      window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [gameStatus]);
+  }, [isPaused]);
   
-  // 处理游戏状态变化
+  // 监听游戏结束
   useEffect(() => {
-    if (gameStatus === 'playing' && songData) {
-      // 加载并播放音频
-      audioSystem.load(songData.audioUrl)
-        .then(() => {
-          audioSystem.play();
-        })
-        .catch(error => {
-          console.error('音频加载失败:', error);
-        });
+    if (!isLoading && !isPaused && gameEndTimeRef.current) {
+      const checkGameEnd = setInterval(() => {
+        if (Date.now() >= gameEndTimeRef.current!) {
+          clearInterval(checkGameEnd);
+          endGame();
+        }
+      }, 1000);
       
-      // 注册游戏结束回调
-      audioSystem.onEnd(() => {
-        // 游戏结束
-        setGameStatus('finished');
-        
-        // 延迟导航到结果页面
-        setTimeout(() => {
-          navigate('/result', { 
-            state: { 
-              score, 
-              maxCombo, 
-              accuracy, 
-              songId 
-            } 
-          });
-        }, 3000);
-      });
-    } else if (gameStatus === 'paused') {
-      // 暂停音频
-      audioSystem.pause();
-    } else if (gameStatus === 'finished') {
-      // 停止音频
-      audioSystem.stop();
+      return () => {
+        clearInterval(checkGameEnd);
+      };
     }
-    
-    return () => {
-      // 清理音频资源
-      if (gameStatus === 'finished') {
-        audioSystem.dispose();
-      }
-    };
-  }, [gameStatus, songData, navigate, score, maxCombo, accuracy, songId]);
+  }, [isLoading, isPaused]);
   
-  // 处理判定结果
-  const handleJudgement = (result: JudgementResult, position: THREE.Vector3) => {
-    if (!result || !gameContainerRef.current) return;
+  // 切换暂停状态
+  const togglePause = () => {
+    if (countdown !== null) return;
     
-    // 将3D位置转换为屏幕位置
-    const containerRect = gameContainerRef.current.getBoundingClientRect();
-    const screenX = containerRect.width / 2 + position.x * 100;
-    const screenY = containerRect.height / 2 - position.y * 100;
-    
-    // 添加判定显示
-    const judgementId = `judgement-${Date.now()}-${Math.random()}`;
-    setJudgements(prev => [
-      ...prev,
-      {
-        id: judgementId,
-        result,
-        position: { x: screenX, y: screenY }
+    setIsPaused(prev => {
+      if (prev) {
+        play();
+      } else {
+        pause();
       }
-    ]);
+      return !prev;
+    });
+  };
+  
+  // 切换性能信息显示
+  const togglePerformanceInfo = () => {
+    setShowPerformanceInfo(prev => !prev);
+  };
+  
+  // 切换自动调整性能
+  const toggleAutoAdjust = () => {
+    setAutoAdjust(prev => {
+      const newValue = !prev;
+      performanceMonitor.updateConfig({ autoAdjust: newValue });
+      return newValue;
+    });
+  };
+  
+  // 结束游戏
+  const endGame = () => {
+    stop();
     
-    // 2秒后移除判定显示
-    setTimeout(() => {
-      setJudgements(prev => prev.filter(j => j.id !== judgementId));
-    }, 2000);
+    // 导航到结果页面
+    navigate('/result', {
+      state: {
+        score,
+        maxCombo: combo,
+        accuracy,
+        songId,
+        perfects: Math.floor(score / 100),
+        goods: Math.floor(score / 200),
+        misses: Math.floor(score / 300),
+        difficulty: mockSongs[songId as keyof typeof mockSongs]?.difficulty || 'normal'
+      }
+    });
   };
   
   // 处理分数更新
@@ -276,199 +257,162 @@ const GamePage: React.FC = () => {
     setScore(newScore);
     setCombo(newCombo);
     setAccuracy(newAccuracy);
-    
-    // 更新最大连击
-    if (newCombo > maxCombo) {
-      setMaxCombo(newCombo);
-    }
   };
   
-  // 暂停游戏
-  const handlePause = () => {
-    if (gameStatus === 'playing') {
-      setGameStatus('paused');
-    } else if (gameStatus === 'paused') {
-      setGameStatus('playing');
-    }
+  // 处理判定结果
+  const handleJudgement = (result: any, position: any) => {
+    // 可以在这里添加额外的视觉或音频反馈
   };
   
-  // 退出游戏
-  const handleExit = () => {
-    // 清理资源
-    audioSystem.dispose();
-    motionTracker.dispose();
-    
-    // 导航回歌曲选择页面
-    navigate('/songs');
+  // 处理性能更新
+  const handlePerformanceUpdate = (newFps: number, newDeviceTier: number) => {
+    setFps(newFps);
+    setDeviceTier(newDeviceTier);
   };
   
-  // 渲染加载状态
-  if (gameStatus === 'loading') {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-cyber-black">
-        <div className="text-center">
-          <div className="text-neon-blue text-2xl animate-pulse mb-4">加载中...</div>
-          <div className="text-gray-400">正在准备 {songData?.title || '游戏'}</div>
-        </div>
-      </div>
-    );
-  }
-  
-  // 渲染倒计时
-  if (gameStatus === 'countdown') {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-cyber-black">
-        <div className="text-center">
-          <div className="text-8xl font-bold neon-text-pink mb-8 animate-pulse">
-            {countdown}
-          </div>
-          <div className="text-2xl text-neon-blue">准备开始</div>
-        </div>
-      </div>
-    );
-  }
-  
-  // 渲染游戏结束
-  if (gameStatus === 'finished') {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-cyber-black">
-        <div className="text-center">
-          <div className="text-4xl font-bold neon-text-green mb-4">游戏结束</div>
-          <div className="text-2xl mb-8">最终得分: {score}</div>
-          <div className="text-xl text-gray-300 animate-pulse">正在计算结果...</div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="relative min-h-screen w-full bg-cyber-black" ref={gameContainerRef}>
-      {/* 隐藏的视频元素（用于手部追踪） */}
-      <video 
-        ref={videoRef}
-        autoPlay 
-        playsInline 
-        muted
-        className="hidden"
-      />
-      
-      {/* 3D游戏场景 */}
+    <div className="relative min-h-screen w-full bg-cyber-black overflow-hidden">
+      {/* 3D场景 */}
       <div className="absolute inset-0">
-        <Canvas shadows>
-          <PerspectiveCamera makeDefault position={[0, 1, 3]} fov={75} />
-          
-          {/* 游戏场景组件 */}
-          <GameScene 
-            beatMap={beatMap}
-            handPosition={handPosition}
-            isPaused={gameStatus === 'paused'}
-            onScoreUpdate={handleScoreUpdate}
-            onJudgement={handleJudgement}
-          />
-          
-          {/* 开发模式下的控制器 */}
-          {process.env.NODE_ENV === 'development' && <OrbitControls />}
+        <Canvas shadows camera={{ position: [0, 1, 2], fov: 75 }}>
+          {!isLoading && (
+            <GameScene 
+              beatMap={beatPoints}
+              handPosition={handPosition}
+              isPaused={isPaused || countdown !== null}
+              onScoreUpdate={handleScoreUpdate}
+              onJudgement={handleJudgement}
+              onPerformanceUpdate={handlePerformanceUpdate}
+            />
+          )}
         </Canvas>
       </div>
       
-      {/* 游戏UI覆盖层 */}
-      <div className="absolute inset-0 pointer-events-none">
-        {/* 顶部信息栏 */}
-        <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-center bg-gradient-to-b from-cyber-dark to-transparent">
-          <div>
-            <div className="text-lg font-bold">{songData?.title}</div>
-            <div className="text-sm text-gray-400">{songData?.artist}</div>
-          </div>
-          <div className="text-right">
-            <div className="text-2xl font-bold neon-text-blue">{score}</div>
-            <div className="text-sm text-gray-400">得分</div>
-          </div>
-        </div>
-        
-        {/* 连击计数 */}
-        <div className="absolute top-1/4 left-1/2 transform -translate-x-1/2 text-center">
-          {combo > 0 && (
-            <motion.div
-              key={combo}
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ duration: 0.2 }}
-            >
-              <div className="text-4xl font-bold neon-text-pink">{combo}</div>
-              <div className="text-sm text-neon-pink">COMBO</div>
-            </motion.div>
-          )}
-        </div>
-        
-        {/* 判定结果显示 */}
-        {judgements.map(judgement => (
-          <JudgementDisplay
-            key={judgement.id}
-            result={judgement.result}
-            position={judgement.position}
-          />
-        ))}
-        
-        {/* 准确度指示器 */}
-        <div className="absolute bottom-4 left-4">
-          <div className="text-sm text-gray-400 mb-1">准确度</div>
-          <div className="w-32 h-2 bg-cyber-gray rounded-full overflow-hidden">
-            <div 
-              className="h-full bg-neon-green"
-              style={{ width: `${accuracy}%` }}
-            />
-          </div>
-          <div className="text-sm text-right text-neon-green">{accuracy.toFixed(1)}%</div>
-        </div>
-        
-        {/* 控制按钮 */}
-        <div className="absolute bottom-4 right-4 pointer-events-auto">
-          <div className="flex gap-2">
-            <button 
-              className="cyber-button py-2 px-4 text-sm"
-              onClick={handlePause}
-            >
-              {gameStatus === 'paused' ? '继续' : '暂停'}
-            </button>
-            <button 
-              className="cyber-button py-2 px-4 text-sm bg-cyber-dark border-neon-pink hover:bg-neon-pink hover:shadow-neon-pink"
-              onClick={handleExit}
-            >
-              退出
-            </button>
-          </div>
-        </div>
-      </div>
-      
-      {/* 暂停菜单 */}
-      {gameStatus === 'paused' && (
-        <div className="absolute inset-0 bg-cyber-black bg-opacity-80 flex items-center justify-center">
-          <div className="cyber-panel w-80">
-            <h2 className="text-2xl font-bold mb-6 neon-text-blue text-center">游戏暂停</h2>
-            <div className="flex flex-col gap-4">
-              <button 
-                className="cyber-button"
-                onClick={handlePause}
-              >
-                继续游戏
-              </button>
-              <button 
-                className="cyber-button bg-cyber-dark border-neon-pink hover:bg-neon-pink hover:shadow-neon-pink"
-                onClick={handleExit}
-              >
-                退出游戏
-              </button>
+      {/* 加载界面 */}
+      {isLoading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-cyber-black bg-opacity-80 z-50">
+          <div className="text-center">
+            <div className="text-neon-blue text-2xl mb-4">加载中...</div>
+            <div className="w-48 h-2 bg-cyber-gray rounded-full overflow-hidden">
+              <motion.div 
+                className="h-full bg-neon-blue"
+                initial={{ width: 0 }}
+                animate={{ width: '100%' }}
+                transition={{ duration: 1.5, ease: "easeInOut" }}
+              />
             </div>
           </div>
         </div>
       )}
       
-      {/* 性能监控（仅开发模式） */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="absolute top-4 right-4 bg-cyber-dark bg-opacity-70 p-2 rounded text-xs">
-          <div>FPS: {Math.round(1000 / 16)}</div>
-          <div>手部置信度: {(handPosition ? 0.85 : 0) * 100}%</div>
-          <div>音频延迟: {audioSystem.getState().currentTime.toFixed(0)}ms</div>
+      {/* 倒计时 */}
+      {!isLoading && countdown !== null && (
+        <div className="absolute inset-0 flex items-center justify-center bg-cyber-black bg-opacity-50 z-40">
+          <motion.div 
+            className="text-neon-pink text-8xl font-bold"
+            initial={{ scale: 0.5, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 1.5, opacity: 0 }}
+            key={countdown}
+          >
+            {countdown}
+          </motion.div>
+        </div>
+      )}
+      
+      {/* 游戏UI */}
+      {!isLoading && (
+        <div className="absolute inset-0 pointer-events-none">
+          {/* 顶部信息栏 */}
+          <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-center">
+            <div className="cyber-panel p-2 px-4">
+              <div className="text-sm text-gray-400">分数</div>
+              <div className="text-2xl font-bold neon-text-blue">{score}</div>
+            </div>
+            
+            <div className="cyber-panel p-2 px-4">
+              <div className="text-sm text-gray-400">连击</div>
+              <div className="text-2xl font-bold neon-text-pink">{combo}</div>
+            </div>
+            
+            <div className="cyber-panel p-2 px-4">
+              <div className="text-sm text-gray-400">准确度</div>
+              <div className="text-2xl font-bold neon-text-green">{accuracy.toFixed(1)}%</div>
+            </div>
+          </div>
+          
+          {/* 暂停按钮 */}
+          <button 
+            className="absolute top-4 right-4 cyber-button-sm pointer-events-auto"
+            onClick={togglePause}
+          >
+            {isPaused ? '继续' : '暂停'}
+          </button>
+          
+          {/* 性能信息 */}
+          {showPerformanceInfo && (
+            <div className="absolute bottom-4 left-4 cyber-panel p-2">
+              <div className="text-sm mb-1">性能监控</div>
+              <div className={`text-sm ${fps >= 55 ? 'text-neon-green' : fps >= 30 ? 'text-neon-blue' : 'text-neon-pink'}`}>
+                FPS: {fps}
+              </div>
+              <div className="text-sm">
+                设备等级: {deviceTier === 3 ? '高' : deviceTier === 2 ? '中' : '低'}
+              </div>
+              <div className="flex items-center mt-2">
+                <input 
+                  type="checkbox" 
+                  id="autoAdjust" 
+                  checked={autoAdjust} 
+                  onChange={toggleAutoAdjust}
+                  className="mr-2 pointer-events-auto"
+                />
+                <label htmlFor="autoAdjust" className="text-sm">自动调整质量</label>
+              </div>
+            </div>
+          )}
+          
+          {/* 控制提示 */}
+          {showControls && (
+            <div className="absolute bottom-4 right-4 cyber-panel p-2">
+              <div className="text-sm mb-1">控制提示</div>
+              <div className="text-xs">ESC: 暂停/继续</div>
+              <div className="text-xs">P: 显示/隐藏性能</div>
+              <div className="text-xs">C: 显示/隐藏控制提示</div>
+            </div>
+          )}
+          
+          {/* 暂停菜单 */}
+          {isPaused && (
+            <div className="absolute inset-0 flex items-center justify-center bg-cyber-black bg-opacity-70 z-30">
+              <div className="cyber-panel p-6 w-80">
+                <h2 className="text-2xl font-bold mb-4 neon-text-blue text-center">已暂停</h2>
+                
+                <div className="space-y-4">
+                  <button 
+                    className="cyber-button w-full pointer-events-auto"
+                    onClick={togglePause}
+                  >
+                    继续游戏
+                  </button>
+                  
+                  <button 
+                    className="cyber-button w-full pointer-events-auto"
+                    onClick={togglePerformanceInfo}
+                  >
+                    {showPerformanceInfo ? '隐藏性能信息' : '显示性能信息'}
+                  </button>
+                  
+                  <button 
+                    className="cyber-button w-full pointer-events-auto"
+                    onClick={() => navigate('/songs')}
+                  >
+                    返回选曲
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

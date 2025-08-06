@@ -61,10 +61,14 @@ export class MotionTracker {
     if (this.isInitialized) return;
     
     try {
+      console.log('MotionTracker.initialize: 开始初始化');
+      
       // 创建视频元素
       if (videoElement) {
+        console.log('MotionTracker.initialize: 使用提供的视频元素');
         this.video = videoElement;
       } else {
+        console.log('MotionTracker.initialize: 创建新的视频元素');
         this.video = document.createElement('video');
         this.video.setAttribute('playsinline', 'true');
         this.video.style.position = 'absolute';
@@ -84,6 +88,7 @@ export class MotionTracker {
       this.ctx = this.canvas.getContext('2d');
       
       // 请求摄像头权限
+      console.log('MotionTracker.initialize: 请求摄像头权限');
       this.mediaStream = await navigator.mediaDevices.getUserMedia({
         video: {
           width: { ideal: 640 },
@@ -93,8 +98,14 @@ export class MotionTracker {
       });
       
       // 设置视频源
-      this.video.srcObject = this.mediaStream;
-      await this.video.play();
+      if (this.video) {
+        console.log('MotionTracker.initialize: 设置视频源');
+        this.video.srcObject = this.mediaStream;
+        await this.video.play();
+      } else {
+        console.error('MotionTracker.initialize: 视频元素不存在，无法设置源');
+        throw new Error('视频元素不存在');
+      }
       
       // 初始化MediaPipe Hands
       await this.initializeMediaPipe();
@@ -212,6 +223,7 @@ export class MotionTracker {
   private processResults(results: Results): void {
     if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
       // 没有检测到手
+      console.log("no hand detected");
       this.state.handPosition = null;
       this.state.confidence = 0;
       this.state.rawLandmarks = null;
@@ -344,42 +356,86 @@ export class MotionTracker {
    * 清理资源
    */
   dispose(): void {
+    console.log('MotionTracker.dispose: 开始清理资源');
     this.state.isTracking = false;
     
     // 停止媒体流
     if (this.mediaStream) {
-      this.mediaStream.getTracks().forEach(track => track.stop());
+      console.log('MotionTracker.dispose: 停止媒体流');
+      try {
+        this.mediaStream.getTracks().forEach(track => track.stop());
+      } catch (e) {
+        console.error('停止媒体流时出错:', e);
+      }
       this.mediaStream = null;
     }
     
     // 停止相机
     if (this.camera) {
-      this.camera.stop();
+      console.log('MotionTracker.dispose: 停止相机');
+      try {
+        this.camera.stop();
+      } catch (e) {
+        console.error('停止相机时出错:', e);
+      }
       this.camera = null;
     }
     
     // 清理Hands
     if (this.hands) {
-      this.hands.close();
+      console.log('MotionTracker.dispose: 清理Hands');
+      try {
+        this.hands.close();
+      } catch (e) {
+        console.error('关闭Hands时出错:', e);
+      }
       this.hands = null;
     }
     
     // 清理模拟数据
     if (this.simulationInterval) {
+      console.log('MotionTracker.dispose: 清理模拟数据');
       clearInterval(this.simulationInterval);
       this.simulationInterval = null;
     }
     
-    // 移除视频元素
-    if (this.video && !this.video.hasAttribute('id')) {
-      document.body.removeChild(this.video);
+    // 移除视频元素 - 只有当视频元素是由我们创建的才移除
+    if (this.video) {
+      console.log('MotionTracker.dispose: 处理视频元素');
+      
+      // 清除视频源
+      try {
+        if (this.video.srcObject) {
+          this.video.srcObject = null;
+        }
+      } catch (e) {
+        console.error('清除视频源时出错:', e);
+      }
+      
+      // 只有当视频元素是由我们创建的才尝试移除
+      if (!this.video.hasAttribute('id')) {
+        try {
+          // 检查视频元素是否在DOM中
+          if (this.video.parentNode) {
+            console.log('MotionTracker.dispose: 从父节点移除视频元素');
+            this.video.parentNode.removeChild(this.video);
+          } else {
+            console.log('MotionTracker.dispose: 视频元素没有父节点，无需移除');
+          }
+        } catch (e) {
+          console.error('移除视频元素时出错:', e);
+        }
+      } else {
+        console.log('MotionTracker.dispose: 视频元素有ID属性，不移除');
+      }
     }
-    this.video = null;
     
+    this.video = null;
     this.canvas = null;
     this.ctx = null;
     this.isInitialized = false;
     this.onUpdateCallbacks = [];
+    console.log('MotionTracker.dispose: 资源清理完成');
   }
   
   /**

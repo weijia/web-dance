@@ -9,6 +9,7 @@ const CalibrationPage = React.lazy(() => import('./pages/calibration-page'));
 const SongSelectPage = React.lazy(() => import('./pages/song-select-page'));
 const ResultPage = React.lazy(() => import('./pages/result-page'));
 const SettingsPage = React.lazy(() => import('./pages/settings-page'));
+const EditorPage = React.lazy(() => import('./pages/editor-page'));
 const NotFoundPage = React.lazy(() => import('./pages/not-found-page'));
 
 // 加载中组件
@@ -28,6 +29,7 @@ function App() {
             <Route path="/songs" element={<SongSelectPage />} />
             <Route path="/calibration" element={<CalibrationPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/editor" element={<EditorPage />} />
             <Route path="/game/:songId" element={<GamePage />} />
             <Route path="/result" element={<ResultPage />} />
             <Route path="*" element={<NotFoundPage />} />

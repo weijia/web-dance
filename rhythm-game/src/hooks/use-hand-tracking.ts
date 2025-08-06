@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { motionTracker, TrackingState } from '../systems/motion-tracker';
 
@@ -10,6 +10,7 @@ export const useHandTracking = (videoElement: HTMLVideoElement | null = null) =>
   const [error, setError] = useState<string | null>(null);
   const [gesture, setGesture] = useState<string | null>(null);
   const [landmarks, setLandmarks] = useState<any[] | null>(null);
+  const trackerInitialized = useRef(false);
   
   // 初始化手部追踪
   useEffect(() => {
@@ -17,12 +18,25 @@ export const useHandTracking = (videoElement: HTMLVideoElement | null = null) =>
     
     const initHandTracking = async () => {
       try {
+        console.log('useHandTracking: 开始初始化手部追踪');
+        
+        // 检查是否已经初始化
+        if (trackerInitialized.current) {
+          console.log('useHandTracking: 追踪器已经初始化，跳过');
+          return;
+        }
+        
         // 初始化动作追踪系统
+        console.log('useHandTracking: 调用motionTracker.initialize');
         await motionTracker.initialize(videoElement || undefined);
+        trackerInitialized.current = true;
         
         // 注册状态更新回调
+        console.log('useHandTracking: 注册状态更新回调');
         motionTracker.onUpdate((state: TrackingState) => {
           if (!isActive) return;
+          
+          // 不使用模拟数据，只使用真实的手部追踪数据
           
           setHandPosition(state.handPosition);
           setIsTracking(state.isTracking);
@@ -34,6 +48,13 @@ export const useHandTracking = (videoElement: HTMLVideoElement | null = null) =>
           const detectedGesture = motionTracker.detectGesture();
           if (detectedGesture) {
             setGesture(detectedGesture);
+          }
+          
+          // 调试输出
+          if (state.handPosition) {
+            console.log(`手部位置: x=${state.handPosition.x.toFixed(2)}, y=${state.handPosition.y.toFixed(2)}, z=${state.handPosition.z.toFixed(2)}, 置信度: ${(state.confidence * 100).toFixed(1)}%`);
+          } else {
+            console.log('未检测到手部位置');
           }
         });
         
@@ -48,8 +69,18 @@ export const useHandTracking = (videoElement: HTMLVideoElement | null = null) =>
     
     // 清理函数
     return () => {
+      console.log('useHandTracking: 清理资源');
       isActive = false;
-      motionTracker.dispose();
+      
+      // 避免重复调用dispose
+      if (trackerInitialized.current) {
+        try {
+          motionTracker.dispose();
+          trackerInitialized.current = false;
+        } catch (e) {
+          console.error('清理手部追踪资源时出错:', e);
+        }
+      }
     };
   }, [videoElement]);
   

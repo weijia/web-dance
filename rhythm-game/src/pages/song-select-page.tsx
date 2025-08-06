@@ -151,7 +151,7 @@ const SongSelectPage: React.FC = () => {
         transition={{ duration: 0.5, delay: 0.5 }}
       >
         <div className="container mx-auto flex justify-between items-center">
-          <div>
+          <div className="flex items-center gap-4">
             {selectedSong && (
               <div>
                 <p className="text-lg font-bold">{selectedSong.title}</p>
@@ -160,6 +160,13 @@ const SongSelectPage: React.FC = () => {
                 </p>
               </div>
             )}
+            <Link to="/editor" className="cyber-button-sm bg-cyber-dark border-neon-blue hover:bg-neon-blue hover:shadow-neon-blue">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 20h9"/>
+                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+              </svg>
+              <span>谱面编辑器</span>
+            </Link>
           </div>
           <button 
             className={`cyber-button ${!selectedSong ? 'opacity-50 cursor-not-allowed' : ''}`}
