@@ -1,0 +1,106 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 10 10 15;
+  --foreground: 255 255 255;
+  --neon-pink: 255 0 255;
+  --neon-blue: 0 255 255;
+  --neon-green: 0 255 0;
+  --neon-purple: 153 0 255;
+}
+
+@layer base {
+  body {
+    @apply bg-dark-bg text-white;
+    font-family: 'Orbitron', 'ZCOOL QingKe HuangYou', sans-serif;
+    background-image: radial-gradient(circle at center, rgb(var(--background)), rgb(5, 5, 8));
+  }
+}
+
+@layer components {
+  .neon-text-pink {
+    @apply text-neon-pink;
+    text-shadow: 0 0 5px #ff00ff, 0 0 10px #ff00ff;
+  }
+  
+  .neon-text-blue {
+    @apply text-neon-blue;
+    text-shadow: 0 0 5px #00ffff, 0 0 10px #00ffff;
+  }
+  
+  .neon-text-green {
+    @apply text-neon-green;
+    text-shadow: 0 0 5px #00ff00, 0 0 10px #00ff00;
+  }
+  
+  .neon-text-purple {
+    @apply text-neon-purple;
+    text-shadow: 0 0 5px #9900ff, 0 0 10px #9900ff;
+  }
+  
+  .neon-border {
+    @apply border-2 border-opacity-70;
+    box-shadow: 0 0 5px currentColor, 0 0 10px currentColor;
+  }
+  
+  .cyberpunk-grid-bg {
+    background-image: linear-gradient(rgba(10, 10, 15, 0.9), rgba(10, 10, 15, 0.9)), 
+                      url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg stroke='%239C92AC' stroke-opacity='0.15' stroke-width='0.5'%3E%3Cpath d='M0 0h60v60H0z'/%3E%3Cpath d='M30 0v60M0 30h60'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  }
+  
+  .glass-panel {
+    @apply bg-opacity-20 backdrop-blur-md bg-white border border-white border-opacity-20 rounded-lg;
+  }
+}
+
+/* 3D场景相关样式 */
+.canvas-container {
+  @apply fixed inset-0 z-0;
+}
+
+/* 游戏UI相关样式 */
+.game-ui {
+  @apply fixed inset-0 z-10 pointer-events-none;
+}
+
+.game-ui .interactive {
+  @apply pointer-events-auto;
+}
+
+/* 动画效果 */
+@keyframes glitch {
+  0% {
+    text-shadow: 0.05em 0 0 #00fffc, -0.03em -0.04em 0 #fc00ff,
+      0.025em 0.04em 0 #fffc00;
+  }
+  15% {
+    text-shadow: 0.05em 0 0 #00fffc, -0.03em -0.04em 0 #fc00ff,
+      0.025em 0.04em 0 #fffc00;
+  }
+  16% {
+    text-shadow: -0.05em -0.025em 0 #00fffc, 0.025em 0.035em 0 #fc00ff,
+      -0.05em -0.05em 0 #fffc00;
+  }
+  49% {
+    text-shadow: -0.05em -0.025em 0 #00fffc, 0.025em 0.035em 0 #fc00ff,
+      -0.05em -0.05em 0 #fffc00;
+  }
+  50% {
+    text-shadow: 0.05em 0.035em 0 #00fffc, 0.03em 0 0 #fc00ff,
+      0 -0.04em 0 #fffc00;
+  }
+  99% {
+    text-shadow: 0.05em 0.035em 0 #00fffc, 0.03em 0 0 #fc00ff,
+      0 -0.04em 0 #fffc00;
+  }
+  100% {
+    text-shadow: -0.05em 0 0 #00fffc, -0.025em -0.04em 0 #fc00ff,
+      -0.04em -0.025em 0 #fffc00;
+  }
+}
+
+.glitch-text {
+  animation: glitch 1s linear infinite;
+}

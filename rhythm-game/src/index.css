@@ -1,0 +1,88 @@
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@100;200;300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --neon-blue: #00f3ff;
+  --neon-pink: #ff00ff;
+  --neon-green: #00ff66;
+  --cyber-black: #0a0a0f;
+  --cyber-dark: #121218;
+  --cyber-gray: #1e1e2a;
+}
+
+body {
+  margin: 0;
+  font-family: 'Orbitron', sans-serif;
+  background-color: var(--cyber-black);
+  color: white;
+  overflow-x: hidden;
+}
+
+@layer components {
+  .neon-text-blue {
+    @apply text-neon-blue;
+    text-shadow: 0 0 5px #00f3ff, 0 0 10px #00f3ff;
+  }
+  
+  .neon-text-pink {
+    @apply text-neon-pink;
+    text-shadow: 0 0 5px #ff00ff, 0 0 10px #ff00ff;
+  }
+  
+  .neon-text-green {
+    @apply text-neon-green;
+    text-shadow: 0 0 5px #00ff66, 0 0 10px #00ff66;
+  }
+  
+  .neon-border-blue {
+    @apply border-neon-blue;
+    box-shadow: 0 0 5px #00f3ff, 0 0 10px #00f3ff;
+  }
+  
+  .neon-border-pink {
+    @apply border-neon-pink;
+    box-shadow: 0 0 5px #ff00ff, 0 0 10px #ff00ff;
+  }
+  
+  .neon-border-green {
+    @apply border-neon-green;
+    box-shadow: 0 0 5px #00ff66, 0 0 10px #00ff66;
+  }
+  
+  .cyber-button {
+    @apply bg-cyber-gray text-white px-6 py-3 rounded-md border border-neon-blue 
+    font-cyber uppercase tracking-wider transition-all duration-300 
+    hover:bg-neon-blue hover:text-cyber-black hover:shadow-neon-blue;
+  }
+  
+  .cyber-panel {
+    @apply bg-cyber-dark bg-opacity-80 border border-neon-blue rounded-md p-4 backdrop-blur-sm;
+  }
+  
+  .cyber-input {
+    @apply bg-cyber-gray border border-neon-blue rounded-md px-4 py-2 text-white 
+    focus:outline-none focus:ring-2 focus:ring-neon-blue;
+  }
+}
+
+/* 自定义滚动条 */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--cyber-dark);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--neon-blue);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--neon-pink);
+}
