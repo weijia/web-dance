@@ -7,14 +7,25 @@ import { motionTracker } from '../systems/motion-tracker';
 const CalibrationPage: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const initRef = useRef(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isCalibrating, setIsCalibrating] = useState(false);
   const [calibrationStep, setCalibrationStep] = useState(0);
   const [calibrationProgress, setCalibrationProgress] = useState(0);
   const [handDetected, setHandDetected] = useState(false);
+  const [errorMessage, setError] = useState<string | null>(null);
   const navigate = useNavigate();
   
   // 使用手部追踪钩子
+  const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null);
+  
+  // 当videoRef.current变化时更新videoElement
+  useEffect(() => {
+    if (videoRef.current) {
+      setVideoElement(videoRef.current);
+    }
+  }, [videoRef.current]);
+  
   const { 
     handPosition, 
     isTracking, 
@@ -23,14 +34,17 @@ const CalibrationPage: React.FC = () => {
     gesture,
     landmarks,
     calibrateTracking
-  } = useHandTracking(videoRef.current);
+  } = useHandTracking(videoElement); // 使用state管理的videoElement
 
   // 初始化摄像头
   useEffect(() => {
     let mounted = true;
     let videoStream: MediaStream | null = null;
     let initTimeout: NodeJS.Timeout;
-    const initRef = useRef(false);
+    
+    // 添加尝试计数器，避免无限循环
+    let tryCount = 0;
+    const maxTries = 20; // 最多尝试20次，约2秒
     
     const initCamera = async () => {
       try {
@@ -38,11 +52,23 @@ const CalibrationPage: React.FC = () => {
         
         // 等待DOM渲染完成，确保videoRef.current存在
         if (!videoRef.current) {
-          console.log('等待视频元素渲染...');
+          tryCount++;
+          console.log(`等待视频元素渲染...（尝试 ${tryCount}/${maxTries}）`);
+          
+          // 如果超过最大尝试次数，则强制结束加载状态
+          if (tryCount >= maxTries) {
+            console.error('视频元素渲染超时，强制结束加载状态');
+            setIsLoading(false);
+            return;
+          }
+          
           // 使用setTimeout等待DOM渲染
           setTimeout(initCamera, 100);
           return;
         }
+        
+        // 重置尝试计数
+        tryCount = 0;
         
         // 获取摄像头流
         console.log('请求摄像头权限...');
@@ -58,20 +84,21 @@ const CalibrationPage: React.FC = () => {
         videoRef.current.srcObject = videoStream;
         console.log('视频源已设置');
         
-        // 等待元数据加载完成后播放视频
+        // 手动触发一次重新渲染，确保videoRef.current被正确传递给useHandTracking
+        setIsLoading(prev => prev);
+        
+        // 等待元数据加载完成后初始化手部追踪
         videoRef.current.onloadedmetadata = async () => {
           if (!mounted || !videoRef.current) return;
           
           try {
-            console.log('视频元数据已加载，尝试播放...');
-            await videoRef.current.play();
-            console.log('视频播放成功');
+            console.log('视频元数据已加载');
             
-            // 初始化手部追踪
+            // 初始化手部追踪（motion-tracker 内部会处理视频播放）
             if (mounted) {
               console.log('开始初始化手部追踪...');
               try {
-                await motionTracker.initialize(videoRef.current);
+                await motionTracker.initialize(videoRef.current, { debugMode: false });
                 console.log('手部追踪初始化成功');
                 
                 // 强制结束加载状态
@@ -497,9 +524,9 @@ const CalibrationPage: React.FC = () => {
         </div>
         
         {/* 错误提示 */}
-        {error && (
+        {(errorMessage || error) && (
           <div className="mt-4 p-3 bg-cyber-dark border border-neon-pink rounded-md text-neon-pink text-center">
-            <div className="mb-2">{error}</div>
+            <div className="mb-2">{errorMessage || error}</div>
             <button 
               className="cyber-button bg-cyber-dark border-neon-pink hover:bg-neon-pink hover:text-cyber-black mt-2"
               onClick={() => window.location.reload()}

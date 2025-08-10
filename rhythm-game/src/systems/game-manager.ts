@@ -196,7 +196,7 @@ export class GameManager {
       });
     
     // 开始手部追踪
-    motionTracker.initialize()
+    motionTracker.initialize(undefined, { debugMode: false })
       .catch(error => {
         console.error('手部追踪初始化失败:', error);
       });
