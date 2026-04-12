@@ -39,6 +39,8 @@ export class MotionTracker {
   private processingInterval: number = 30; // 每30ms处理一次（约33fps）
   private useSimulation: boolean = false; // 是否使用模拟数据（当MediaPipe加载失败时）
   private simulationInterval: any = null;
+  private debugMode: boolean = false; // 调试模式，控制日志输出
+  private lastHandDetectionState: boolean = false; // 上一次手部检测状态
   
   // 追踪状态
   private state: TrackingState = {
@@ -55,9 +57,12 @@ export class MotionTracker {
   /**
    * 初始化追踪系统
    * @param videoElement 视频元素（可选）
+   * @param options 初始化选项
    * @returns Promise<void>
    */
-  async initialize(videoElement?: HTMLVideoElement): Promise<void> {
+  async initialize(videoElement?: HTMLVideoElement, options?: { debugMode?: boolean }): Promise<void> {
+    // 设置调试模式
+    this.debugMode = options?.debugMode || false;
     if (this.isInitialized) return;
     
     try {
@@ -100,8 +105,26 @@ export class MotionTracker {
       // 设置视频源
       if (this.video) {
         console.log('MotionTracker.initialize: 设置视频源');
-        this.video.srcObject = this.mediaStream;
-        await this.video.play();
+        
+        // 检查视频是否已经有源和是否已经在播放
+        if (!this.video.srcObject) {
+          this.video.srcObject = this.mediaStream;
+          
+          // 只有在视频未播放时才尝试播放
+          if (this.video.paused) {
+            try {
+              await this.video.play();
+              console.log('MotionTracker.initialize: 视频播放成功');
+            } catch (playError) {
+              console.warn('MotionTracker.initialize: 视频播放请求被中断，可能已经在播放', playError);
+              // 继续执行，不抛出错误
+            }
+          } else {
+            console.log('MotionTracker.initialize: 视频已经在播放中');
+          }
+        } else {
+          console.log('MotionTracker.initialize: 视频已经有源，跳过设置');
+        }
       } else {
         console.error('MotionTracker.initialize: 视频元素不存在，无法设置源');
         throw new Error('视频元素不存在');
@@ -223,12 +246,32 @@ export class MotionTracker {
   private processResults(results: Results): void {
     if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
       // 没有检测到手
-      console.log("no hand detected");
+      const currentHandDetected = false;
+      
+      // 只在状态变化时或调试模式下打印日志
+      if (this.lastHandDetectionState !== currentHandDetected) {
+        console.log("手部丢失");
+        this.lastHandDetectionState = currentHandDetected;
+      } else if (this.debugMode) {
+        // 在调试模式下，每10次处理打印一次日志，避免控制台被刷屏
+        if (Math.random() < 0.1) {
+          console.log("未检测到手部");
+        }
+      }
+      
+      // 更新状态
       this.state.handPosition = null;
       this.state.confidence = 0;
       this.state.rawLandmarks = null;
       this.notifyUpdate();
       return;
+    }
+    
+    // 如果之前没有检测到手，现在检测到了，打印日志
+    const currentHandDetected = true;
+    if (this.lastHandDetectionState !== currentHandDetected) {
+      console.log("检测到手部");
+      this.lastHandDetectionState = currentHandDetected;
     }
     
     // 获取第一只手的关键点

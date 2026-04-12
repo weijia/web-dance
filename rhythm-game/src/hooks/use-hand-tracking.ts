@@ -16,19 +16,22 @@ export const useHandTracking = (videoElement: HTMLVideoElement | null = null) =>
   useEffect(() => {
     let isActive = true;
     
+    // 如果没有视频元素，则不初始化
+    if (!videoElement) {
+      console.log('useHandTracking: 视频元素不存在，等待视频元素...');
+      return;
+    }
+    
     const initHandTracking = async () => {
       try {
         console.log('useHandTracking: 开始初始化手部追踪');
         
-        // 检查是否已经初始化
-        if (trackerInitialized.current) {
-          console.log('useHandTracking: 追踪器已经初始化，跳过');
-          return;
-        }
+        // 重置初始化状态，允许在视频元素变化时重新初始化
+        trackerInitialized.current = false;
         
         // 初始化动作追踪系统
         console.log('useHandTracking: 调用motionTracker.initialize');
-        await motionTracker.initialize(videoElement || undefined);
+        await motionTracker.initialize(videoElement, { debugMode: false });
         trackerInitialized.current = true;
         
         // 注册状态更新回调
