@@ -170,6 +170,9 @@ const GamePage: React.FC = () => {
         setTimeout(() => {
           play();
           
+          // 开始游戏
+          gameManager.startGame();
+          
           // 设置游戏结束时间
           if (song) {
             gameEndTimeRef.current = Date.now() + song.duration * 1000;

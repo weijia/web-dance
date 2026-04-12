@@ -186,6 +186,9 @@ export class GameManager {
     this.gameStartTime = performance.now();
     this.lastUpdateTime = this.gameStartTime;
     
+    // 设置全局游戏开始时间，供TargetSphere组件使用
+    (window as any).gameStartTime = this.gameStartTime;
+    
     // 加载并播放音频
     audioSystem.load(this.beatMap.songId)
       .then(() => {
@@ -644,6 +647,15 @@ export class GameManager {
    */
   getActiveBeats(): BeatPoint[] {
     return [...this.activeBeats];
+  }
+  
+  /**
+   * 获取当前游戏时间
+   * @returns number 游戏时间（毫秒）
+   */
+  getGameTime(): number {
+    if (this.state !== 'playing') return 0;
+    return performance.now() - this.gameStartTime;
   }
   
   /**

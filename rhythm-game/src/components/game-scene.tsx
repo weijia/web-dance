@@ -23,10 +23,9 @@ interface GameSceneProps {
 // 目标点组件
 const TargetSphere: React.FC<{
   beat: BeatPoint;
-  gameTime: number;
   onHit?: () => void;
   quality: 'low' | 'medium' | 'high';
-}> = ({ beat, gameTime, onHit, quality }) => {
+}> = ({ beat, onHit, quality }) => {
   const meshRef = useRef<THREE.Mesh>(null);
   const [hovered, setHovered] = useState(false);
   const [hit, setHit] = useState(false);
@@ -37,6 +36,9 @@ const TargetSphere: React.FC<{
   
   // 计算目标点的缩放和透明度（基于时间差）
   const calculateScale = () => {
+    // 获取当前游戏时间
+    const gameTime = performance.now() - (window as any).gameStartTime || 0;
+    
     // 目标点出现时间窗口：提前1000ms出现，持续到判定时间后500ms
     const appearTime = beat.time - 1000;
     const disappearTime = beat.time + 500;
@@ -118,7 +120,7 @@ const TargetSphere: React.FC<{
         });
       }
     }
-  }, [hovered, hit, gameTime]);
+  }, [hovered, hit]);
   
   // 脉动动画和时间相关的缩放
   useFrame(() => {
@@ -136,6 +138,9 @@ const TargetSphere: React.FC<{
         meshRef.current.material.opacity = opacity;
       }
       
+      // 获取当前游戏时间
+      const gameTime = performance.now() - (window as any).gameStartTime || 0;
+      
       // 脉动旋转 - 低质量模式下减少计算
       if (quality !== 'low' || gameTime % 2 === 0) {
         meshRef.current.rotation.x = Math.sin(gameTime * 0.002) * 0.2;
@@ -147,6 +152,9 @@ const TargetSphere: React.FC<{
   // 获取目标点颜色
   const color = beat.color || '#00f3ff';
   
+  // 计算目标点的缩放和透明度（基于时间差）
+  const { scale, opacity } = calculateScale();
+  
   return (
     <mesh
       ref={meshRef}
@@ -154,6 +162,7 @@ const TargetSphere: React.FC<{
       onPointerOver={() => setHovered(true)}
       onPointerOut={() => setHovered(false)}
       onClick={() => !hit && setHit(true)}
+      scale={[scale, scale, scale]}
     >
       <sphereGeometry args={[beat.size || 0.3, sphereSegments, sphereSegments]} />
       <meshStandardMaterial 
@@ -162,7 +171,7 @@ const TargetSphere: React.FC<{
         emissiveIntensity={hovered ? 2 : 1}
         toneMapped={false}
         transparent
-        opacity={1}
+        opacity={opacity}
         // 低质量模式下禁用一些高级特性
         roughness={quality === 'low' ? 0.9 : 0.5}
         metalness={quality === 'low' ? 0.1 : 0.5}
@@ -692,17 +701,6 @@ export const GameScene: React.FC<GameSceneProps> = ({
       }
     });
     
-    // 加载谱面
-    if (beatMap.length > 0) {
-      gameManager.loadBeatMap({
-        songId: 'current-song',
-        bpm: 120,
-        offset: 0,
-        beats: beatMap,
-        difficulty: 'normal'
-      });
-    }
-    
     // 初始化特效管理器
     effectsManager.initialize(scene);
     
@@ -713,6 +711,20 @@ export const GameScene: React.FC<GameSceneProps> = ({
     };
   }, [scene]);
   
+  // 加载谱面
+  useEffect(() => {
+    // 加载谱面
+    if (beatMap.length > 0) {
+      gameManager.loadBeatMap({
+        songId: 'current-song',
+        bpm: 120,
+        offset: 0,
+        beats: beatMap,
+        difficulty: 'normal'
+      });
+    }
+  }, [beatMap]);
+  
   // 游戏时间更新
   useFrame((state) => {
     // 记录渲染开始时间
@@ -720,11 +732,11 @@ export const GameScene: React.FC<GameSceneProps> = ({
     
     if (isPaused) return;
     
-    const deltaTime = state.clock.getElapsedTime() - lastTimeRef.current;
-    lastTimeRef.current = state.clock.getElapsedTime();
+    // 使用游戏管理器的游戏时间
+    const gameTime = gameManager.getGameTime();
     
-    // 更新游戏时间
-    setGameTime(prev => prev + deltaTime * 1000); // 转换为毫秒
+    // 直接更新游戏时间状态
+    setGameTime(gameTime);
     
     // 更新游戏管理器
     gameManager.update();
@@ -805,7 +817,6 @@ export const GameScene: React.FC<GameSceneProps> = ({
         <TargetSphere 
           key={`target-${beat.time}-${index}`}
           beat={beat}
-          gameTime={gameTime}
           quality={renderQuality}
           onHit={() => {
             // 实际的命中处理由游戏管理器负责
