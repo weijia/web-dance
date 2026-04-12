@@ -12,128 +12,60 @@ const CalibrationPage: React.FC = () => {
   const [calibrationStep, setCalibrationStep] = useState(0);
   const [calibrationProgress, setCalibrationProgress] = useState(0);
   const [handDetected, setHandDetected] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null);
   const navigate = useNavigate();
+  const initRef = useRef(false);
+  
+  // 当视频元素可用时设置
+  useEffect(() => {
+    if (videoRef.current) {
+      console.log('视频元素已可用');
+      setVideoElement(videoRef.current);
+    }
+  }, [videoRef]);
   
   // 使用手部追踪钩子
   const { 
     handPosition, 
     isTracking, 
     confidence, 
-    error, 
     gesture,
     landmarks,
     calibrateTracking
-  } = useHandTracking(videoRef.current);
+  } = useHandTracking(videoElement);
 
-  // 初始化摄像头
+  // 处理手部追踪初始化状态
   useEffect(() => {
     let mounted = true;
-    let videoStream: MediaStream | null = null;
     let initTimeout: NodeJS.Timeout;
-    const initRef = useRef(false);
     
-    const initCamera = async () => {
-      try {
-        console.log('开始初始化摄像头...');
-        
-        // 等待DOM渲染完成，确保videoRef.current存在
-        if (!videoRef.current) {
-          console.log('等待视频元素渲染...');
-          // 使用setTimeout等待DOM渲染
-          setTimeout(initCamera, 100);
-          return;
-        }
-        
-        // 获取摄像头流
-        console.log('请求摄像头权限...');
-        videoStream = await navigator.mediaDevices.getUserMedia({
-          video: { width: 640, height: 480 }
-        });
-        console.log('摄像头权限已获取');
-        
-        // 确保组件仍然挂载
-        if (!mounted || !videoRef.current) return;
-        
-        // 设置视频源
-        videoRef.current.srcObject = videoStream;
-        console.log('视频源已设置');
-        
-        // 等待元数据加载完成后播放视频
-        videoRef.current.onloadedmetadata = async () => {
-          if (!mounted || !videoRef.current) return;
-          
-          try {
-            console.log('视频元数据已加载，尝试播放...');
-            await videoRef.current.play();
-            console.log('视频播放成功');
-            
-            // 初始化手部追踪
-            if (mounted) {
-              console.log('开始初始化手部追踪...');
-              try {
-                await motionTracker.initialize(videoRef.current);
-                console.log('手部追踪初始化成功');
-                
-                // 强制结束加载状态
-                if (mounted) {
-                  console.log('设置加载状态为完成');
-                  setIsLoading(false);
-                }
-              } catch (trackError) {
-                console.error('手部追踪初始化失败:', trackError);
-                if (mounted) {
-                  setIsLoading(false); // 即使失败也结束加载状态
-                  setError('手部追踪初始化失败，请刷新页面重试');
-                }
-              }
-            }
-          } catch (e) {
-            console.error('视频播放失败:', e);
-            if (mounted) {
-              setIsLoading(false);
-              setError('视频播放失败，请检查摄像头权限');
-            }
-          }
-        };
-        
-        // 设置超时，防止永久加载
-        initTimeout = setTimeout(() => {
-          if (mounted && isLoading) {
-            console.log('初始化超时，强制结束加载状态');
-            setIsLoading(false);
-            setError('初始化超时，请刷新页面重试');
-          }
-        }, 10000); // 10秒超时
-        
-      } catch (error) {
-        console.error('无法访问摄像头:', error);
-        if (mounted) {
-          setIsLoading(false);
-          setError('无法访问摄像头，请检查浏览器权限设置');
-        }
+    // 等待手部追踪初始化
+    const waitForTracking = () => {
+      if (isTracking || !mounted) {
+        console.log('手部追踪初始化完成');
+        setIsLoading(false);
+        return;
       }
+      
+      // 检查是否超时
+      initTimeout = setTimeout(() => {
+        if (mounted && isLoading) {
+          console.log('初始化超时，强制结束加载状态');
+          setIsLoading(false);
+          setError('初始化超时，请刷新页面重试');
+        }
+      }, 10000); // 10秒超时
     };
     
-    initCamera();
+    waitForTracking();
     
     return () => {
       console.log('组件卸载，清理资源');
       mounted = false;
       clearTimeout(initTimeout);
-      
-      // 清理摄像头资源
-      if (videoStream) {
-        videoStream.getTracks().forEach(track => {
-          console.log('停止摄像头轨道');
-          track.stop();
-        });
-      }
-      
-      // 清理手部追踪资源
-      console.log('释放手部追踪资源');
-      motionTracker.dispose();
     };
-  }, [isLoading]);
+  }, [isLoading, isTracking]);
 
   // 监听手部检测状态
   useEffect(() => {
@@ -387,7 +319,22 @@ const CalibrationPage: React.FC = () => {
         
         {/* 摄像头预览 */}
         <div className="relative w-full aspect-video mb-6 overflow-hidden rounded-lg border border-neon-blue">
-          {isLoading ? (
+          {/* 始终渲染视频和画布元素，确保videoRef能获取到元素 */}
+          <video 
+            ref={videoRef}
+            playsInline 
+            muted
+            className="absolute inset-0 w-full h-full object-cover opacity-50"
+          />
+          <canvas 
+            ref={canvasRef}
+            width={640}
+            height={480}
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+          
+          {/* 加载状态覆盖 */}
+          {isLoading && (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-cyber-dark">
               <div className="text-neon-blue text-xl animate-pulse mb-4">加载摄像头...</div>
               <button 
@@ -400,68 +347,54 @@ const CalibrationPage: React.FC = () => {
                 跳过等待
               </button>
             </div>
-          ) : (
-            <>
-              <video 
-                ref={videoRef}
-                autoPlay 
-                playsInline 
-                muted
-                className="absolute inset-0 w-full h-full object-cover opacity-50"
-              />
-              <canvas 
-                ref={canvasRef}
-                width={640}
-                height={480}
-                className="absolute inset-0 w-full h-full object-cover"
-              />
-              
-              {isCalibrating && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <div className="absolute top-4 left-4 right-4 flex items-center gap-4">
-                    <div className="text-lg font-bold">步骤 {calibrationStep}/3</div>
-                    <div className="flex-1 h-2 bg-cyber-gray rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-neon-blue"
-                        style={{ width: `${calibrationProgress}%` }}
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="text-2xl font-bold mb-4 neon-text-blue">
-                    {renderStepInstructions()}
-                  </div>
-                  
-                  <div className={`text-lg ${handDetected ? 'text-neon-green' : 'text-neon-pink'}`}>
-                    {handDetected ? '已检测到手' : '未检测到手'}
-                  </div>
-                  
-                  {renderGestureInfo()}
+          )}
+          
+          {/* 校准状态覆盖 */}
+          {isCalibrating && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <div className="absolute top-4 left-4 right-4 flex items-center gap-4">
+                <div className="text-lg font-bold">步骤 {calibrationStep}/3</div>
+                <div className="flex-1 h-2 bg-cyber-gray rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-neon-blue"
+                    style={{ width: `${calibrationProgress}%` }}
+                  />
                 </div>
-              )}
+              </div>
               
-              {!isCalibrating && (
-                <div className="absolute bottom-4 left-4 right-4 bg-cyber-dark bg-opacity-70 p-2 rounded">
-                  <div className="flex justify-between items-center">
-                    <div className="text-sm">
-                      <div className="flex items-center gap-2">
-                        <span>手部检测:</span>
-                        <span className={handDetected ? 'text-neon-green' : 'text-neon-pink'}>
-                          {handDetected ? '已检测' : '未检测'}
-                        </span>
-                      </div>
-                      {handDetected && (
-                        <div className="flex items-center gap-2">
-                          <span>置信度:</span>
-                          <span className="text-neon-blue">{(confidence * 100).toFixed(0)}%</span>
-                        </div>
-                      )}
-                    </div>
-                    {renderGestureInfo()}
+              <div className="text-2xl font-bold mb-4 neon-text-blue">
+                {renderStepInstructions()}
+              </div>
+              
+              <div className={`text-lg ${handDetected ? 'text-neon-green' : 'text-neon-pink'}`}>
+                {handDetected ? '已检测到手' : '未检测到手'}
+              </div>
+              
+              {renderGestureInfo()}
+            </div>
+          )}
+          
+          {/* 非校准状态信息 */}
+          {!isCalibrating && !isLoading && (
+            <div className="absolute bottom-4 left-4 right-4 bg-cyber-dark bg-opacity-70 p-2 rounded">
+              <div className="flex justify-between items-center">
+                <div className="text-sm">
+                  <div className="flex items-center gap-2">
+                    <span>手部检测:</span>
+                    <span className={handDetected ? 'text-neon-green' : 'text-neon-pink'}>
+                      {handDetected ? '已检测' : '未检测'}
+                    </span>
                   </div>
+                  {handDetected && (
+                    <div className="flex items-center gap-2">
+                      <span>置信度:</span>
+                      <span className="text-neon-blue">{(confidence * 100).toFixed(0)}%</span>
+                    </div>
+                  )}
                 </div>
-              )}
-            </>
+                {renderGestureInfo()}
+              </div>
+            </div>
           )}
         </div>
         

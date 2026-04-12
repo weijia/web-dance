@@ -244,6 +244,66 @@ const HandIndicator: React.FC<{
   );
 };
 
+// 自定义文本组件 - 替代@react-three/drei的Text组件
+const CustomText = React.forwardRef<THREE.Mesh, {
+  position: THREE.Vector3;
+  color: string;
+  text: string;
+  fontSize: number;
+}>(({ position, color, text, fontSize }, ref) => {
+  const textureRef = useRef<THREE.CanvasTexture | null>(null);
+  
+  useEffect(() => {
+    // 创建离屏画布
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 128;
+    
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    // 清除画布
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // 设置文本样式
+    ctx.fillStyle = color;
+    ctx.font = `bold ${canvas.height * 0.7}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    
+    // 绘制文本
+    ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+    
+    // 创建纹理
+    if (textureRef.current) {
+      textureRef.current.dispose();
+    }
+    textureRef.current = new THREE.CanvasTexture(canvas);
+    
+    // 清理
+    return () => {
+      if (textureRef.current) {
+        textureRef.current.dispose();
+      }
+    };
+  }, [text, color]);
+  
+  return (
+    textureRef.current && (
+      <mesh ref={ref} position={position}>
+        <planeGeometry args={[fontSize * 5, fontSize, 1]} />
+        <meshBasicMaterial
+          map={textureRef.current}
+          transparent={true}
+          side={THREE.DoubleSide}
+        />
+      </mesh>
+    )
+  );
+});
+
+CustomText.displayName = 'CustomText';
+
 // 判定效果组件
 const JudgementEffect: React.FC<{
   result: JudgementResult;
@@ -308,18 +368,13 @@ const JudgementEffect: React.FC<{
   }
   
   return (
-    <Text
+    <CustomText
       ref={textRef}
       position={position}
       color={color}
+      text={text}
       fontSize={0.2}
-      font="/fonts/Orbitron-Bold.ttf"
-      anchorX="center"
-      anchorY="middle"
-      material-transparent={true}
-    >
-      {text}
-    </Text>
+    />
   );
 };
 
@@ -494,34 +549,28 @@ const PerformanceMonitorUI: React.FC<{
   
   return (
     <group position={[-2, 2, -5]}>
-      <Text
+      <CustomText
+        ref={React.createRef()}
         position={[0, 0, 0]}
         color={fps >= 55 ? '#00ff00' : fps >= 30 ? '#ffff00' : '#ff0000'}
+        text={`FPS: ${fps}`}
         fontSize={0.15}
-        anchorX="left"
-        anchorY="top"
-      >
-        {`FPS: ${fps}`}
-      </Text>
-      <Text
+      />
+      <CustomText
+        ref={React.createRef()}
         position={[0, -0.2, 0]}
         color="#ffffff"
+        text={`设备等级: ${deviceTier === 3 ? '高' : deviceTier === 2 ? '中' : '低'}`}
         fontSize={0.15}
-        anchorX="left"
-        anchorY="top"
-      >
-        {`设备等级: ${deviceTier === 3 ? '高' : deviceTier === 2 ? '中' : '低'}`}
-      </Text>
+      />
       {memoryUsage > 0 && (
-        <Text
+        <CustomText
+          ref={React.createRef()}
           position={[0, -0.4, 0]}
           color="#ffffff"
+          text={`内存: ${memoryUsage.toFixed(1)} MB`}
           fontSize={0.15}
-          anchorX="left"
-          anchorY="top"
-        >
-          {`内存: ${memoryUsage.toFixed(1)} MB`}
-        </Text>
+        />
       )}
     </group>
   );
@@ -782,16 +831,13 @@ export const GameScene: React.FC<GameSceneProps> = ({
       
       {/* 游戏暂停提示 */}
       {isPaused && (
-        <Text
+        <CustomText
+          ref={React.createRef()}
           position={[0, 0, -2]}
           color="#ff00ff"
+          text="已暂停"
           fontSize={0.5}
-          font="/fonts/Orbitron-Bold.ttf"
-          anchorX="center"
-          anchorY="middle"
-        >
-          已暂停
-        </Text>
+        />
       )}
       
       {/* 性能监控 */}

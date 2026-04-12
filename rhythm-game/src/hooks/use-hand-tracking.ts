@@ -65,7 +65,10 @@ export const useHandTracking = (videoElement: HTMLVideoElement | null = null) =>
       }
     };
     
-    initHandTracking();
+    // 只有当videoElement存在时才初始化
+    if (videoElement) {
+      initHandTracking();
+    }
     
     // 清理函数
     return () => {

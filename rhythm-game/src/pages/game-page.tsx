@@ -93,11 +93,22 @@ const GamePage: React.FC = () => {
   const [fps, setFps] = useState(60);
   const [deviceTier, setDeviceTier] = useState(2);
   const [autoAdjust, setAutoAdjust] = useState(true);
+  const [song, setSong] = useState<any>(null);
+  const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  
+  // 当视频元素可用时设置
+  useEffect(() => {
+    if (videoRef.current) {
+      console.log('视频元素已可用');
+      setVideoElement(videoRef.current);
+    }
+  }, [videoRef]);
   
   // 使用手部追踪钩子
-  const { handPosition, isTracking, confidence } = useHandTracking();
+  const { handPosition, isTracking, confidence } = useHandTracking(videoElement);
   
-  // 使用音频同步钩子
+  // 使用音频同步钩子 - 只有当歌曲数据和节拍点都加载完成后才初始化
   const { 
     isPlaying, 
     currentTime, 
@@ -105,7 +116,16 @@ const GamePage: React.FC = () => {
     play, 
     pause, 
     stop 
-  } = useAudioSync();
+  } = useAudioSync({
+    audioUrl: song?.audioUrl || '',
+    beatMap: beatPoints,
+    onBeat: (beat) => {
+      // 处理节拍触发
+    },
+    onComplete: () => {
+      // 处理歌曲结束
+    }
+  });
   
   // 游戏结束时间引用
   const gameEndTimeRef = useRef<number | null>(null);
@@ -117,11 +137,13 @@ const GamePage: React.FC = () => {
       
       try {
         // 获取歌曲数据
-        const song = mockSongs[songId as keyof typeof mockSongs];
-        if (!song) {
+        const songData = mockSongs[songId as keyof typeof mockSongs];
+        if (!songData) {
           navigate('/songs');
           return;
         }
+        
+        setSong(songData);
         
         // 生成节拍点
         const beats = generateBeatPoints(songId);
@@ -146,10 +168,12 @@ const GamePage: React.FC = () => {
         
         // 倒计时结束后开始游戏
         setTimeout(() => {
-          play(song.audioUrl);
+          play();
           
           // 设置游戏结束时间
-          gameEndTimeRef.current = Date.now() + song.duration * 1000;
+          if (song) {
+            gameEndTimeRef.current = Date.now() + song.duration * 1000;
+          }
         }, 3000);
         
       } catch (error) {
@@ -272,6 +296,17 @@ const GamePage: React.FC = () => {
   
   return (
     <div className="relative min-h-screen w-full bg-cyber-black overflow-hidden">
+      {/* 摄像头预览 */}
+      <div className="absolute top-4 left-4 w-32 h-24 z-10">
+        <video 
+          ref={videoRef}
+          playsInline 
+          muted
+          autoPlay
+          className="w-full h-full object-cover rounded border border-neon-blue"
+        />
+      </div>
+      
       {/* 3D场景 */}
       <div className="absolute inset-0">
         <Canvas shadows camera={{ position: [0, 1, 2], fov: 75 }}>

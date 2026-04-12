@@ -40,6 +40,11 @@ export const useAudioSync = ({
   
   // 初始化音频
   useEffect(() => {
+    // 只有当audioUrl不为空时才初始化
+    if (!audioUrl) {
+      return;
+    }
+    
     // 创建Howler音频实例
     const sound = new Howl({
       src: [audioUrl],
@@ -139,6 +144,11 @@ export const useAudioSync = ({
   
   // 校准音频延迟
   const calibrateDelay = () => {
+    // 只有当audioUrl不为空时才校准
+    if (!audioUrl) {
+      return;
+    }
+    
     // 简单的延迟测试
     const startTime = performance.now();
     const testSound = new Howl({
