@@ -1,106 +1,88 @@
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@100;200;300;400;500;600;700;800&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --background: 10 10 15;
-  --foreground: 255 255 255;
-  --neon-pink: 255 0 255;
-  --neon-blue: 0 255 255;
-  --neon-green: 0 255 0;
-  --neon-purple: 153 0 255;
+  --neon-blue: #00f3ff;
+  --neon-pink: #ff00ff;
+  --neon-green: #00ff66;
+  --cyber-black: #0a0a0f;
+  --cyber-dark: #121218;
+  --cyber-gray: #1e1e2a;
 }
 
-@layer base {
-  body {
-    @apply bg-dark-bg text-white;
-    font-family: 'Orbitron', 'ZCOOL QingKe HuangYou', sans-serif;
-    background-image: radial-gradient(circle at center, rgb(var(--background)), rgb(5, 5, 8));
-  }
+body {
+  margin: 0;
+  font-family: 'Orbitron', sans-serif;
+  background-color: var(--cyber-black);
+  color: white;
+  overflow-x: hidden;
 }
 
 @layer components {
+  .neon-text-blue {
+    @apply text-neon-blue;
+    text-shadow: 0 0 5px #00f3ff, 0 0 10px #00f3ff;
+  }
+  
   .neon-text-pink {
     @apply text-neon-pink;
     text-shadow: 0 0 5px #ff00ff, 0 0 10px #ff00ff;
   }
   
-  .neon-text-blue {
-    @apply text-neon-blue;
-    text-shadow: 0 0 5px #00ffff, 0 0 10px #00ffff;
-  }
-  
   .neon-text-green {
     @apply text-neon-green;
-    text-shadow: 0 0 5px #00ff00, 0 0 10px #00ff00;
+    text-shadow: 0 0 5px #00ff66, 0 0 10px #00ff66;
   }
   
-  .neon-text-purple {
-    @apply text-neon-purple;
-    text-shadow: 0 0 5px #9900ff, 0 0 10px #9900ff;
+  .neon-border-blue {
+    @apply border-neon-blue;
+    box-shadow: 0 0 5px #00f3ff, 0 0 10px #00f3ff;
   }
   
-  .neon-border {
-    @apply border-2 border-opacity-70;
-    box-shadow: 0 0 5px currentColor, 0 0 10px currentColor;
+  .neon-border-pink {
+    @apply border-neon-pink;
+    box-shadow: 0 0 5px #ff00ff, 0 0 10px #ff00ff;
   }
   
-  .cyberpunk-grid-bg {
-    background-image: linear-gradient(rgba(10, 10, 15, 0.9), rgba(10, 10, 15, 0.9)), 
-                      url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg stroke='%239C92AC' stroke-opacity='0.15' stroke-width='0.5'%3E%3Cpath d='M0 0h60v60H0z'/%3E%3Cpath d='M30 0v60M0 30h60'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  .neon-border-green {
+    @apply border-neon-green;
+    box-shadow: 0 0 5px #00ff66, 0 0 10px #00ff66;
   }
   
-  .glass-panel {
-    @apply bg-opacity-20 backdrop-blur-md bg-white border border-white border-opacity-20 rounded-lg;
+  .cyber-button {
+    @apply bg-cyber-gray text-white px-6 py-3 rounded-md border border-neon-blue 
+    font-cyber uppercase tracking-wider transition-all duration-300 
+    hover:bg-neon-blue hover:text-cyber-black hover:shadow-neon-blue;
+  }
+  
+  .cyber-panel {
+    @apply bg-cyber-dark bg-opacity-80 border border-neon-blue rounded-md p-4 backdrop-blur-sm;
+  }
+  
+  .cyber-input {
+    @apply bg-cyber-gray border border-neon-blue rounded-md px-4 py-2 text-white 
+    focus:outline-none focus:ring-2 focus:ring-neon-blue;
   }
 }
 
-/* 3D场景相关样式 */
-.canvas-container {
-  @apply fixed inset-0 z-0;
+/* 自定义滚动条 */
+::-webkit-scrollbar {
+  width: 8px;
 }
 
-/* 游戏UI相关样式 */
-.game-ui {
-  @apply fixed inset-0 z-10 pointer-events-none;
+::-webkit-scrollbar-track {
+  background: var(--cyber-dark);
 }
 
-.game-ui .interactive {
-  @apply pointer-events-auto;
+::-webkit-scrollbar-thumb {
+  background: var(--neon-blue);
+  border-radius: 4px;
 }
 
-/* 动画效果 */
-@keyframes glitch {
-  0% {
-    text-shadow: 0.05em 0 0 #00fffc, -0.03em -0.04em 0 #fc00ff,
-      0.025em 0.04em 0 #fffc00;
-  }
-  15% {
-    text-shadow: 0.05em 0 0 #00fffc, -0.03em -0.04em 0 #fc00ff,
-      0.025em 0.04em 0 #fffc00;
-  }
-  16% {
-    text-shadow: -0.05em -0.025em 0 #00fffc, 0.025em 0.035em 0 #fc00ff,
-      -0.05em -0.05em 0 #fffc00;
-  }
-  49% {
-    text-shadow: -0.05em -0.025em 0 #00fffc, 0.025em 0.035em 0 #fc00ff,
-      -0.05em -0.05em 0 #fffc00;
-  }
-  50% {
-    text-shadow: 0.05em 0.035em 0 #00fffc, 0.03em 0 0 #fc00ff,
-      0 -0.04em 0 #fffc00;
-  }
-  99% {
-    text-shadow: 0.05em 0.035em 0 #00fffc, 0.03em 0 0 #fc00ff,
-      0 -0.04em 0 #fffc00;
-  }
-  100% {
-    text-shadow: -0.05em 0 0 #00fffc, -0.025em -0.04em 0 #fc00ff,
-      -0.04em -0.025em 0 #fffc00;
-  }
-}
-
-.glitch-text {
-  animation: glitch 1s linear infinite;
+::-webkit-scrollbar-thumb:hover {
+  background: var(--neon-pink);
 }
