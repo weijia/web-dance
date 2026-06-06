@@ -32,14 +32,9 @@ jobs:
           # 获取 commit SHA
           echo "sha=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
 
-          # 生成时间戳目录名 (YYYY-MM-DDTHH-MM-SS)
-          TIMESTAMP=$(date -u +"%Y-%m-%dT%H-%M-%S")
-          echo "timestamp=$TIMESTAMP" >> $GITHUB_OUTPUT
-
           echo "📦 Version: $TAG"
           echo "🕐 Build Time: $TAG_DATE"
           echo "🔨 Commit: ${GITHUB_SHA::7}"
-          echo "📁 Upload Dir: $TIMESTAMP"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -57,11 +52,11 @@ jobs:
           VITE_APP_BUILD_TIME: ${{ steps.version.outputs.build_time }}
           VITE_APP_COMMIT_SHA: ${{ steps.version.outputs.sha }}
 
-      # ========== 部署到 WebDAV（时间戳目录 + latest） ==========
-      # action-upload-webdav 的 upload-directory 指定子目录名
-      # 有 tag 时默认用 "release"，这里手动指定为时间戳
-      # copy-to-latest 会在 webdav-root 下创建 latest/ 子目录
-      # 最终结构: online/web-dance/2026-06-06T02-30-00/ + online/web-dance/latest/
+      # ========== 部署到 WebDAV ==========
+      # action-upload-webdav 自动目录规则（见 docs/webdav-deploy-spec.md）：
+      # - 有 git tag 时 → 使用 "release" 目录
+      # - 无 git tag 时 → 使用 ISO 时间戳目录 (如 2026-06-06T02-30-00)
+      # - copy-to-latest: true → 同时在 webdav-root 下创建 latest/ 目录
       - name: Upload to WebDAV
         uses: weijia/action-upload-webdav@v1.2.0
         with:
@@ -69,6 +64,5 @@ jobs:
           webdav-username: ${{ secrets.WEBDAV_USERNAME }}
           webdav-password: ${{ secrets.WEBDAV_PASSWORD }}
           webdav-root: online/${{ github.event.repository.name }}
-          upload-directory: ${{ steps.version.outputs.timestamp }}
           source-directory: ./dist
           copy-to-latest: 'true'
