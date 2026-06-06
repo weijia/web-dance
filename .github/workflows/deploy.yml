@@ -52,22 +52,16 @@ jobs:
           VITE_APP_BUILD_TIME: ${{ steps.version.outputs.build_time }}
           VITE_APP_COMMIT_SHA: ${{ steps.version.outputs.sha }}
 
-      # ========== 部署到 WebDAV（版本目录） ==========
-      - name: Upload to WebDAV (version)
+      # ========== 部署到 WebDAV（版本目录 + latest） ==========
+      # action-upload-webdav 会自动在 webdav-root 下创建 release/ 子目录
+      # copy-to-latest 会在 webdav-root 下创建 latest/ 子目录
+      # 最终结构: online/web-dance/release/ + online/web-dance/latest/
+      - name: Upload to WebDAV
         uses: weijia/action-upload-webdav@v1.2.0
         with:
           webdav-url: ${{ secrets.WEBDAV_URL }}
           webdav-username: ${{ secrets.WEBDAV_USERNAME }}
           webdav-password: ${{ secrets.WEBDAV_PASSWORD }}
-          webdav-root: online/${{ github.event.repository.name }}/${{ steps.version.outputs.tag }}
+          webdav-root: online/${{ github.event.repository.name }}
           source-directory: ./dist
-
-      # ========== 部署到 WebDAV（latest） ==========
-      - name: Upload to WebDAV (latest)
-        uses: weijia/action-upload-webdav@v1.2.0
-        with:
-          webdav-url: ${{ secrets.WEBDAV_URL }}
-          webdav-username: ${{ secrets.WEBDAV_USERNAME }}
-          webdav-password: ${{ secrets.WEBDAV_PASSWORD }}
-          webdav-root: online/latest
-          source-directory: ./dist
+          copy-to-latest: 'true'

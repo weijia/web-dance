@@ -21,7 +21,7 @@ const LoadingFallback = () => (
 
 function App() {
   return (
-    <BrowserRouter basename="/dav/online/web-dance/latest">
+    <BrowserRouter>
       <div className="min-h-screen bg-cyber-black text-white">
         <Suspense fallback={<LoadingFallback />}>
           <Routes>
