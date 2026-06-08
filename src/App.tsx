@@ -1,5 +1,5 @@
 import { useState, Suspense } from 'react'
-import { Routes, Route, BrowserRouter } from 'react-router-dom'
+import { Routes, Route, HashRouter } from 'react-router-dom'
 import React from 'react'
 
 // 导入页面组件
@@ -21,7 +21,7 @@ const LoadingFallback = () => (
 
 function App() {
   return (
-    <BrowserRouter>
+    <HashRouter>
       <div className="min-h-screen bg-cyber-black text-white">
         <Suspense fallback={<LoadingFallback />}>
           <Routes>
@@ -36,7 +36,7 @@ function App() {
           </Routes>
         </Suspense>
       </div>
-    </BrowserRouter>
+    </HashRouter>
   )
 }
 
